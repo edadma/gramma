@@ -57,6 +57,23 @@ class JSONBenchmark:
   @Benchmark
   def grammaDeep(): Any = GrammaJSON.parse(deep)
 
+  // --- Gramma StdLexer benchmarks (ergonomic API) ---
+
+  @Benchmark
+  def grammaStdSmall(): Any = GrammaStdJSON.parse(small)
+
+  @Benchmark
+  def grammaStdMedium(): Any = GrammaStdJSON.parse(medium)
+
+  @Benchmark
+  def grammaStdLarge(): Any = GrammaStdJSON.parse(large)
+
+  @Benchmark
+  def grammaStdLargeMl(): Any = GrammaStdJSON.parse(largeMl)
+
+  @Benchmark
+  def grammaStdDeep(): Any = GrammaStdJSON.parse(deep)
+
   // --- Gramma lazy benchmarks (on-demand tokenization) ---
 
   @Benchmark

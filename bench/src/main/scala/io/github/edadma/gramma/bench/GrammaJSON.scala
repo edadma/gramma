@@ -24,22 +24,20 @@ case class GToken(kind: GTokenKind, text: String, pos: Pos)
 object GrammaJSONLexer extends Lexers:
   def nextToken(using ctx: LexCtx): P[GToken] =
     whitespace
-    if ctx.atEnd then
-      ctx.ok = false
-      fail
-    else
-      val pos = ctx.capturePos()
-      stringLit('"', '\\') ^^ { text => GToken(GTokenKind.StringLit, text, pos) } |
-        decimalLit ^^ { text => GToken(GTokenKind.NumberLit, text, pos) } |
-        str("true") ^^ { _ => GToken(GTokenKind.True, "true", pos) } |
-        str("false") ^^ { _ => GToken(GTokenKind.False, "false", pos) } |
-        str("null") ^^ { _ => GToken(GTokenKind.Null, "null", pos) } |
-        char('{') ^^ { _ => GToken(GTokenKind.LBrace, "{", pos) } |
-        char('}') ^^ { _ => GToken(GTokenKind.RBrace, "}", pos) } |
-        char('[') ^^ { _ => GToken(GTokenKind.LBracket, "[", pos) } |
-        char(']') ^^ { _ => GToken(GTokenKind.RBracket, "]", pos) } |
-        char(':') ^^ { _ => GToken(GTokenKind.Colon, ":", pos) } |
-        char(',') ^^ { _ => GToken(GTokenKind.Comma, ",", pos) }
+    val pos = ctx.capturePos()
+    firstChar {
+      case '"'            => stringLit('"', '\\') ^^ { text => GToken(GTokenKind.StringLit, text, pos) }
+      case c if c.isDigit => decimalLit ^^ { text => GToken(GTokenKind.NumberLit, text, pos) }
+      case 't'            => str("true") ^^ { _ => GToken(GTokenKind.True, "true", pos) }
+      case 'f'            => str("false") ^^ { _ => GToken(GTokenKind.False, "false", pos) }
+      case 'n'            => str("null") ^^ { _ => GToken(GTokenKind.Null, "null", pos) }
+      case '{'            => char('{') ^^ { _ => GToken(GTokenKind.LBrace, "{", pos) }
+      case '}'            => char('}') ^^ { _ => GToken(GTokenKind.RBrace, "}", pos) }
+      case '['            => char('[') ^^ { _ => GToken(GTokenKind.LBracket, "[", pos) }
+      case ']'            => char(']') ^^ { _ => GToken(GTokenKind.RBracket, "]", pos) }
+      case ':'            => char(':') ^^ { _ => GToken(GTokenKind.Colon, ":", pos) }
+      case ','            => char(',') ^^ { _ => GToken(GTokenKind.Comma, ",", pos) }
+    }
 
 object GrammaJSONParser extends TokenParsers[GToken]:
   def tokenPos(token: GToken): Pos = token.pos
@@ -96,3 +94,39 @@ object GrammaJSON:
 
   def parseLazy(input: String): Either[ParseError, JValue] =
     GrammaJSONParser.parseSource(input, GrammaJSONLexer, GrammaJSONLexer.nextToken)(GrammaJSONParser.value)
+
+// --- StdLexer/StdParsers JSON implementation ---
+
+object StdJSONLexer extends StdLexer:
+  delimiters ++= List("{", "}", "[", "]", ":", ",")
+  reserved ++= List("true", "false", "null")
+
+object StdJSONParser extends StdParsers(StdJSONLexer):
+  def value(using ctx: ParseCtx): P[JValue] =
+    obj | arr | jString | jNumber | jBool | jNull
+
+  def jString(using ctx: ParseCtx): P[JValue] =
+    stringLit ^^ { s => JString(s) }
+
+  def jNumber(using ctx: ParseCtx): P[JValue] =
+    numericLit ^^ { n => JNumber(n.toDouble) }
+
+  def jBool(using ctx: ParseCtx): P[JValue] =
+    keyword("true") ^^ { _ => JBool(true) } |
+      keyword("false") ^^ { _ => JBool(false) }
+
+  def jNull(using ctx: ParseCtx): P[JValue] =
+    keyword("null") ^^ { _ => JNull }
+
+  def arr(using ctx: ParseCtx): P[JValue] =
+    delimiter("[") ~> repsep(value, delimiter(",")) <~ delimiter("]") ^^ { elems => JArray(elems) }
+
+  def obj(using ctx: ParseCtx): P[JValue] =
+    delimiter("{") ~> repsep(field, delimiter(",")) <~ delimiter("}") ^^ { fields => JObject(fields) }
+
+  def field(using ctx: ParseCtx): P[(String, JValue)] =
+    stringLit ~ (delimiter(":") ~> value) ^^ { case k ~ v => (k, v) }
+
+object GrammaStdJSON:
+  def parse(input: String): Either[ParseError, JValue] =
+    StdJSONParser.parseSource(input)(StdJSONParser.value)

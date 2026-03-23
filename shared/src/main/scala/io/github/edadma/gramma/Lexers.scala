@@ -213,6 +213,25 @@ abstract class Lexers extends Parsers[Char]:
       if ctx.index == saved then continue = false
     succeed(())
 
+  // --- First-character dispatch ---
+
+  def firstChar[A](pf: PartialFunction[Char, P[A]])(using ctx: ParseCtx): P[A] =
+    if ctx.atEnd then
+      if ctx.index >= ctx.failAt then
+        ctx.failAt = ctx.index
+        ctx.failMsg = "unexpected end of input"
+      ctx.ok = false
+      fail
+    else
+      val c = ctx.tokens(ctx.index)
+      if pf.isDefinedAt(c) then pf(c)
+      else
+        if ctx.index >= ctx.failAt then
+          ctx.failAt = ctx.index
+          ctx.failMsg = s"unexpected character '$c'"
+        ctx.ok = false
+        fail
+
   // --- Tokenize entry point ---
 
   def tokenize[Tok: scala.reflect.ClassTag](source: String, rule: LexCtx ?=> P[Tok]): Either[ParseError, Array[Tok]] =

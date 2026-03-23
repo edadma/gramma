@@ -45,6 +45,16 @@ abstract class StdLexer extends Lexers:
   /** Override to customize whitespace/comment skipping. Default: whitespace only. */
   protected def skip(using ctx: LexCtx): Unit = whitespace
 
+  /** Override to enable indentation-sensitive parsing (Python-style INDENT/DEDENT tokens).
+    * When true, the lexer emits Indent, Dedent, and Newline tokens based on
+    * leading whitespace. Indentation is suppressed inside brackets.
+    */
+  protected def indentSensitive: Boolean = false
+
+  /** Bracket characters that suppress indentation when nested. */
+  protected def openBrackets: String = "([{"
+  protected def closeBrackets: String = ")]}"
+
   // --- Internal optimized tokenization ---
 
   def nextToken(using ctx: LexCtx): P[StdToken] =
@@ -155,6 +165,10 @@ abstract class StdLexer extends Lexers:
   // --- Tokenize ---
 
   def tokenize(source: String): Either[ParseError, Array[StdToken]] =
+    if indentSensitive then tokenizeIndent(source)
+    else tokenizeFlat(source)
+
+  private def tokenizeFlat(source: String): Either[ParseError, Array[StdToken]] =
     given ctx: LexCtx = new LexCtx(source)
     val buf = scala.collection.mutable.ArrayBuffer[StdToken]()
     skip
@@ -165,3 +179,113 @@ abstract class StdLexer extends Lexers:
       buf += extract(result)
       skip
     Right(buf.toArray)
+
+  private def tokenizeIndent(source: String): Either[ParseError, Array[StdToken]] =
+    given ctx: LexCtx = new LexCtx(source)
+    val buf = mutable.ArrayBuffer[StdToken]()
+    val indentStack = mutable.Stack[Int](0)
+    var bracketDepth = 0
+    var atLineStart = true
+
+    // Skip initial blank lines
+    skipBlankLines
+
+    while !ctx.atEnd do
+      if atLineStart && bracketDepth == 0 then
+        // Measure indentation
+        val lineIndent = countSpaces
+        val pos = ctx.capturePos()
+
+        // Skip blank/comment-only lines
+        if isBlankOrCommentLine then
+          skipToNextLine
+        else if lineIndent > indentStack.top then
+          // Deeper indentation — emit INDENT
+          indentStack.push(lineIndent)
+          buf += StdToken(StdTokenKind.Indent, "", pos)
+          atLineStart = false
+        else
+          // Same or less indentation — emit DEDENT(s) then NEWLINE
+          if buf.nonEmpty then // no NEWLINE before first token
+            // Emit DEDENTs for each level we've left
+            while indentStack.top > lineIndent do
+              indentStack.pop()
+              buf += StdToken(StdTokenKind.Dedent, "", pos)
+            if indentStack.top != lineIndent then
+              return Left(ParseError(pos, s"inconsistent indentation: expected ${indentStack.top} spaces, got $lineIndent"))
+            buf += StdToken(StdTokenKind.Newline, "", pos)
+          atLineStart = false
+      else
+        // Lex one token
+        skipInlineWhitespace
+        if ctx.atEnd then
+          () // done
+        else if ctx.tokens(ctx.index) == '\n' then
+          ctx.advance()
+          if bracketDepth == 0 then
+            atLineStart = true
+          // else: inside brackets, ignore newlines
+          skipBlankLines
+        else
+          val result = nextTokenAfterSkip
+          if !ctx.ok then
+            return Left(ParseError(ctx.capturePos(), ctx.failMsg))
+          val tok = extract(result)
+          // Track bracket depth
+          if tok.kind == StdTokenKind.Delimiter then
+            if openBrackets.contains(tok.text.head) then bracketDepth += 1
+            else if closeBrackets.contains(tok.text.head) then bracketDepth = Math.max(0, bracketDepth - 1)
+          buf += tok
+
+    // Emit remaining DEDENTs at EOF
+    val eofPos = ctx.capturePos()
+    while indentStack.top > 0 do
+      indentStack.pop()
+      buf += StdToken(StdTokenKind.Dedent, "", eofPos)
+
+    Right(buf.toArray)
+
+  // --- Indentation helpers ---
+
+  private def countSpaces(using ctx: LexCtx): Int =
+    var count = 0
+    while !ctx.atEnd && ctx.tokens(ctx.index) == ' ' do
+      count += 1
+      ctx.advance()
+    count
+
+  private def skipInlineWhitespace(using ctx: LexCtx): Unit =
+    while !ctx.atEnd && (ctx.tokens(ctx.index) == ' ' || ctx.tokens(ctx.index) == '\t') do
+      ctx.advance()
+
+  private def skipBlankLines(using ctx: LexCtx): Unit =
+    var continue = true
+    while continue && !ctx.atEnd do
+      val saved = ctx.index
+      skipInlineWhitespace
+      if ctx.atEnd then
+        continue = false
+      else if ctx.tokens(ctx.index) == '\n' then
+        ctx.advance() // blank line
+      else if ctx.tokens(ctx.index) == '#' then
+        // Comment line — skip to end of line
+        while !ctx.atEnd && ctx.tokens(ctx.index) != '\n' do
+          ctx.advance()
+        if !ctx.atEnd then ctx.advance() // skip the \n
+      else
+        // Non-blank line — restore position to start of indentation
+        ctx.index = saved
+        continue = false
+
+  private def isBlankOrCommentLine(using ctx: LexCtx): Boolean =
+    val saved = ctx.index
+    skipInlineWhitespace
+    val result = ctx.atEnd || ctx.tokens(ctx.index) == '\n' || ctx.tokens(ctx.index) == '#'
+    ctx.index = saved
+    result
+
+  private def skipToNextLine(using ctx: LexCtx): Unit =
+    while !ctx.atEnd && ctx.tokens(ctx.index) != '\n' do
+      ctx.advance()
+    if !ctx.atEnd then ctx.advance()
+    skipBlankLines

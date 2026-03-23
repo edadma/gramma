@@ -84,6 +84,25 @@ abstract class StdParsers(val lexer: StdLexer) extends TokenParsers[StdToken]:
     val tok = matchTokenText(StdTokenKind.Delimiter, d, s"'$d'")
     if tok != null then succeed(tok.text) else fail
 
+  /** Match an indent token (indentation increased). */
+  inline def indent(using ctx: ParseCtx): P[Unit] =
+    val tok = matchToken(StdTokenKind.Indent, "indent")
+    if tok != null then succeed(()) else fail
+
+  /** Match a dedent token (indentation decreased). */
+  inline def dedent(using ctx: ParseCtx): P[Unit] =
+    val tok = matchToken(StdTokenKind.Dedent, "dedent")
+    if tok != null then succeed(()) else fail
+
+  /** Match a newline token (same indentation level). */
+  inline def newline(using ctx: ParseCtx): P[Unit] =
+    val tok = matchToken(StdTokenKind.Newline, "newline")
+    if tok != null then succeed(()) else fail
+
+  /** Match an indented block: INDENT, then the body, then DEDENT. */
+  def block[A](p: => P[A])(using ctx: ParseCtx): P[A] =
+    indent ~> p <~ dedent
+
   /** Parse source string — tokenizes with the paired lexer then parses. */
   def parseSource[A](source: String)(rule: ParseCtx ?=> P[A]): Either[ParseError, A] =
     for

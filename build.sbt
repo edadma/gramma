@@ -19,8 +19,8 @@ ThisBuild / sonatypeProfileName := "io.github.edadma"
 
 ThisBuild / scmInfo := Some(
   ScmInfo(
-    url("https://github.com/edadma/cross_template"),
-    "scm:git@github.com:edadma/cross_template.git",
+    url("https://github.com/edadma/gramma"),
+    "scm:git@github.com:edadma/gramma.git",
   ),
 )
 ThisBuild / developers := List(
@@ -32,15 +32,15 @@ ThisBuild / developers := List(
   ),
 )
 
-ThisBuild / homepage := Some(url("https://github.com/edadma/cross_template"))
-ThisBuild / description := "Project description here"
+ThisBuild / homepage := Some(url("https://github.com/edadma/gramma"))
+ThisBuild / description := "A general-purpose Scala 3 parsing library"
 
 ThisBuild / publishTo := sonatypePublishToBundle.value
 
-lazy val cross_template = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+lazy val gramma = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .in(file("."))
   .settings(
-    name := "cross_template",
+    name := "gramma",
     scalacOptions ++=
       Seq(
         "-deprecation",
@@ -84,9 +84,9 @@ lazy val cross_template = crossProject(JSPlatform, JVMPlatform, NativePlatform)
 
 lazy val root = project
   .in(file("."))
-  .aggregate(cross_template.js, cross_template.jvm, cross_template.native)
+  .aggregate(gramma.js, gramma.jvm, gramma.native)
   .settings(
-    name                := "cross_template",
+    name                := "gramma",
     publish / skip      := true,
     publishLocal / skip := true,
   )

@@ -47,6 +47,20 @@ class JSONBenchmark:
   @Benchmark
   def grammaDeep(): Any = GrammaJSON.parse(deep)
 
+  // --- Gramma lazy benchmarks (on-demand tokenization) ---
+
+  @Benchmark
+  def grammaLazySmall(): Any = GrammaJSON.parseLazy(small)
+
+  @Benchmark
+  def grammaLazyMedium(): Any = GrammaJSON.parseLazy(medium)
+
+  @Benchmark
+  def grammaLazyLarge(): Any = GrammaJSON.parseLazy(large)
+
+  @Benchmark
+  def grammaLazyDeep(): Any = GrammaJSON.parseLazy(deep)
+
   // --- Scala combinator benchmarks (lex + parse) ---
 
   @Benchmark

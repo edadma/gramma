@@ -8,10 +8,17 @@ abstract class Parsers[T]:
     var failAt: Int = 0
     var failMsg: String = ""
 
+    // Protected no-arg constructor for LazyParseCtx
+    protected def this() = this(null.asInstanceOf[Array[T]])
+
     def advance(): Unit =
       index += 1
 
     def atEnd: Boolean = index >= tokens.length
+
+    def tokenAt(i: Int): T = tokens(i)
+
+    def size: Int = tokens.length
 
   // P[A] is opaque — at runtime it's just A, no wrapper.
   // Combinators are regular defs (not inline) so the opaque type is
@@ -23,6 +30,7 @@ abstract class Parsers[T]:
   protected def succeed[A](a: A): P[A] = a
   protected def fail[A]: P[A] = null.asInstanceOf[P[A]]
   protected def extract[A](p: P[A]): A = p
+  private[gramma] def extractValue[A](p: P[A]): A = p
 
   // --- Abstract primitive ---
 
@@ -38,7 +46,7 @@ abstract class Parsers[T]:
       ctx.ok = false
       null.asInstanceOf[P[T]]
     else
-      val tok = ctx.tokens(ctx.index)
+      val tok = ctx.tokenAt(ctx.index)
       if pred(tok) then
         ctx.advance()
         tok
@@ -238,8 +246,8 @@ abstract class Parsers[T]:
   def positioned[A <: Positional](p: => P[A])(using ctx: ParseCtx): P[A] =
     val startIndex = ctx.index
     val result: A = p
-    if ctx.ok && startIndex < ctx.tokens.length then
-      positionOf(ctx.tokens(startIndex)).foreach(result.setPos)
+    if ctx.ok && startIndex < ctx.size then
+      positionOf(ctx.tokenAt(startIndex)).foreach(result.setPos)
     result
 
   // Override in TokenParsers to extract Pos from tokens
@@ -248,21 +256,24 @@ abstract class Parsers[T]:
   // --- Entry point ---
 
   def parse[A](tokens: Array[T], rule: ParseCtx ?=> P[A]): Either[ParseError, A] =
-    given ctx: ParseCtx = new ParseCtx(tokens)
+    runParse(new ParseCtx(tokens), rule)
+
+  protected def runParse[A](ctx: ParseCtx, rule: ParseCtx ?=> P[A]): Either[ParseError, A] =
+    given ParseCtx = ctx
     val result: A = rule
     if !ctx.ok then
       val pos =
-        if ctx.failAt < tokens.length then
-          positionOf(tokens(ctx.failAt)).getOrElse(Pos(0, 0, ""))
-        else if tokens.nonEmpty then
-          positionOf(tokens(tokens.length - 1)).getOrElse(Pos(0, 0, ""))
+        if ctx.failAt < ctx.size then
+          positionOf(ctx.tokenAt(ctx.failAt)).getOrElse(Pos(0, 0, ""))
+        else if ctx.size > 0 then
+          positionOf(ctx.tokenAt(ctx.size - 1)).getOrElse(Pos(0, 0, ""))
         else
           Pos(0, 0, "")
       Left(ParseError(pos, ctx.failMsg))
     else if !ctx.atEnd then
       val pos =
-        if ctx.index < tokens.length then
-          positionOf(tokens(ctx.index)).getOrElse(Pos(0, 0, ""))
+        if ctx.index < ctx.size then
+          positionOf(ctx.tokenAt(ctx.index)).getOrElse(Pos(0, 0, ""))
         else
           Pos(0, 0, "")
       Left(ParseError(pos, s"expected end of input"))

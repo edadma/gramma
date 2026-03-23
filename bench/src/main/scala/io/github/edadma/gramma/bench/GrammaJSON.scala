@@ -93,3 +93,6 @@ object GrammaJSON:
       tokens <- GrammaJSONLexer.tokenize(input, GrammaJSONLexer.nextToken)
       ast    <- GrammaJSONParser.parseTokens(tokens)
     yield ast
+
+  def parseLazy(input: String): Either[ParseError, JValue] =
+    GrammaJSONParser.parseSource(input, GrammaJSONLexer, GrammaJSONLexer.nextToken)(GrammaJSONParser.value)

@@ -7,7 +7,7 @@
 ![ScalaJS Version](https://img.shields.io/badge/Scala.js-1.20.2-blue.svg)
 ![Scala Native Version](https://img.shields.io/badge/Scala_Native-0.5.10-blue.svg)
 
-A Scala 3 parsing library with the ergonomics of scala-parser-combinators and performance close to fastparse. Supports separate lexing and parsing phases with automatic tokenization.
+A Scala 3 parsing library with the ergonomics of scala-parser-combinators and performance close to fastparse. Supports separate lexing and parsing phases with automatic tokenization, and optional indentation-sensitive parsing.
 
 ## Quick Start
 
@@ -19,11 +19,14 @@ object MyLexer extends StdLexer:
   delimiters ++= List("(", ")", "+", "-", "*", "/", ",")
   reserved ++= List("if", "then", "else")
 
-// 2. Define your parser — ident, stringLit, numericLit, keyword, delimiter are built in
+// 2. Define your parser — ident, stringLit, numericLit are built in.
+//    Bare strings automatically match keywords or delimiters.
 object MyParser extends StdParsers(MyLexer):
+  import scala.language.implicitConversions
+
   def expr(using ctx: ParseCtx): P[Int] =
     numericLit ^^ (_.toInt) |
-      keyword("if") ~> expr ~ (keyword("then") ~> expr) ~ (keyword("else") ~> expr) ^^ {
+      "if" ~> expr ~ ("then" ~> expr) ~ ("else" ~> expr) ^^ {
         case cond ~ t ~ e => if cond != 0 then t else e
       }
 
@@ -32,7 +35,7 @@ MyParser.parseSource("if 1 then 42 else 0")(MyParser.expr)
 // Right(42)
 ```
 
-No token types to define, no lexer rules to write. Identifiers, strings, numbers, keywords, and delimiters are handled automatically.
+No token types to define, no lexer rules to write. Identifiers, strings, numbers, keywords, and delimiters are handled automatically. Bare strings in parser rules match keywords or delimiters implicitly.
 
 ## Installation
 
@@ -44,7 +47,7 @@ Cross-compiled for JVM, Scala.js, and Scala Native.
 
 ## JSON Parser Example
 
-A complete JSON parser in ~30 lines:
+A complete JSON parser in ~25 lines:
 
 ```scala
 import io.github.edadma.gramma.*
@@ -62,25 +65,73 @@ object JSONLexer extends StdLexer:
   reserved ++= List("true", "false", "null")
 
 object JSONParser extends StdParsers(JSONLexer):
+  import scala.language.implicitConversions
+
   def value(using ctx: ParseCtx): P[JValue] =
     obj | arr | stringLit ^^ (JString(_)) |
       numericLit ^^ (n => JNumber(n.toDouble)) |
-      keyword("true") ^^ (_ => JBool(true)) |
-      keyword("false") ^^ (_ => JBool(false)) |
-      keyword("null") ^^ (_ => JNull)
+      "true" ^^ (_ => JBool(true)) |
+      "false" ^^ (_ => JBool(false)) |
+      "null" ^^ (_ => JNull)
 
   def arr(using ctx: ParseCtx): P[JValue] =
-    delimiter("[") ~> repsep(value, delimiter(",")) <~ delimiter("]") ^^ (JArray(_))
+    "[" ~> repsep(value, ",") <~ "]" ^^ (JArray(_))
 
   def obj(using ctx: ParseCtx): P[JValue] =
-    delimiter("{") ~> repsep(field, delimiter(",")) <~ delimiter("}") ^^ (JObject(_))
+    "{" ~> repsep(field, ",") <~ "}" ^^ (JObject(_))
 
   def field(using ctx: ParseCtx): P[(String, JValue)] =
-    stringLit ~ (delimiter(":") ~> value) ^^ { case k ~ v => (k, v) }
+    stringLit ~ (":" ~> value) ^^ { case k ~ v => (k, v) }
 
 // Parse
 JSONParser.parseSource("""{"name": "Alice", "age": 30}""")(JSONParser.value)
 ```
+
+## Indentation-Sensitive Parsing
+
+Gramma supports Python-style indentation parsing. Enable it on your lexer and the library automatically emits `Indent`, `Dedent`, and `Newline` tokens:
+
+```scala
+object YAMLLexer extends StdLexer:
+  override protected def indentSensitive: Boolean = true
+  delimiters ++= List(":", "-")
+  reserved ++= List("true", "false", "null")
+
+object YAMLParser extends StdParsers(YAMLLexer):
+  import scala.language.implicitConversions
+
+  def document(using ctx: ParseCtx): P[YValue] =
+    blockMap | blockList | scalar
+
+  def blockMap(using ctx: ParseCtx): P[YValue] =
+    rep1sep(mapEntry, newline) ^^ (entries => YMap(entries))
+
+  def mapEntry(using ctx: ParseCtx): P[(String, YValue)] =
+    ident ~ (":" ~> mapValue) ^^ { case k ~ v => (k, v) }
+
+  def mapValue(using ctx: ParseCtx): P[YValue] =
+    scalar | block(value)  // inline value or indented block
+
+  def blockList(using ctx: ParseCtx): P[YValue] =
+    rep1sep("-" ~> value, newline) ^^ (items => YList(items))
+```
+
+This parses:
+
+```yaml
+name: Alice
+address:
+  city: Springfield
+  zip: 12345
+hobbies:
+  - reading
+  - coding
+```
+
+Indentation rules follow Python semantics:
+- Brackets (`()`, `[]`, `{}`) suppress indentation — newlines inside brackets are ignored
+- Blank lines and comment-only lines are ignored
+- Inconsistent dedentation is an error
 
 ## Performance
 
@@ -151,25 +202,15 @@ Multi-character delimiters are matched longest-first (`<=` before `<`).
 
 Override methods to customize lexer behavior:
 
-```scala
-object MyLexer extends StdLexer:
-  delimiters ++= List("+", "-")
-  reserved ++= List("let", "in")
-
-  // Single-quoted strings instead of double-quoted
-  override protected def stringQuote: Char = '\''
-
-  // Support line comments
-  override protected def skip(using ctx: LexCtx): Unit =
-    skipWhitespace("//")
-
-  // Add custom token types (e.g., regex literals, heredocs)
-  override protected def customToken(using ctx: LexCtx): Option[P[StdToken]] =
-    if ctx.tokens(ctx.index) == '#' then
-      // ... custom recognition logic
-      Some(succeed(StdToken(StdTokenKind.Delimiter, "#", ctx.capturePos())))
-    else None
-```
+| Override | Default | Description |
+|---|---|---|
+| `isIdentStart(c)` | letter or `_` | First character of identifiers |
+| `isIdentPart(c)` | letter, digit, or `_` | Subsequent identifier characters |
+| `stringQuote` | `'"'` | String literal quote character |
+| `stringEscape` | `'\\'` | String literal escape character |
+| `skip` | whitespace | Whitespace/comment skipping |
+| `indentSensitive` | `false` | Enable INDENT/DEDENT tokens |
+| `customToken` | `None` | Hook for custom token types |
 
 ## StdParsers
 
@@ -182,13 +223,17 @@ object MyLexer extends StdLexer:
 | `numericLit` | `P[String]` | Match numeric literal, return text |
 | `keyword(word)` | `P[String]` | Match specific keyword |
 | `delimiter(d)` | `P[String]` | Match specific delimiter |
+| `indent` | `P[Unit]` | Match indent token |
+| `dedent` | `P[Unit]` | Match dedent token |
+| `newline` | `P[Unit]` | Match newline token (same indent level) |
+| `block(p)` | `P[A]` | Match `indent ~> p <~ dedent` |
+
+Bare strings are implicitly converted to keyword or delimiter matchers (requires `import scala.language.implicitConversions`):
 
 ```scala
-object MyParser extends StdParsers(MyLexer):
-  def letExpr(using ctx: ParseCtx): P[Expr] =
-    keyword("let") ~> ident ~ (delimiter("=") ~> expr) ~ (keyword("in") ~> expr) ^^ {
-      case name ~ value ~ body => LetExpr(name, value, body)
-    }
+// These are equivalent:
+keyword("if") ~> expr ~ (keyword("then") ~> expr)
+"if" ~> expr ~ ("then" ~> expr)
 ```
 
 ## Committed Choice
@@ -210,10 +255,8 @@ Errors use the **furthest failure** heuristic. Every token carries a `Pos` from 
 For languages that need non-standard tokenization, use `Lexers` and `TokenParsers` directly:
 
 ```scala
-// Custom token type
 case class Token(kind: TokenKind, text: String, pos: Pos)
 
-// Custom lexer with full control
 object MyLexer extends Lexers:
   def nextToken(using ctx: LexCtx): P[Token] =
     skipWhitespace("//", "/*", "*/", false)
@@ -225,7 +268,6 @@ object MyLexer extends Lexers:
       case _               => charIn("+-*/") ^^ { c => ... }
     }
 
-// Custom parser
 object MyParser extends TokenParsers[Token]:
   def tokenPos(token: Token): Pos = token.pos
   // ... define accept-based matchers for your token type
@@ -239,6 +281,7 @@ sbt grammaJVM/compile    # JVM only
 sbt grammaJS/compile     # Scala.js only
 sbt grammaNative/compile # Scala Native only
 sbt grammaJVM/test       # Run tests
+sbt grammaJVM/run        # Run cross-platform benchmarks
 ```
 
 ## License

@@ -17,9 +17,9 @@ abstract class StdParsers(val lexer: StdLexer) extends TokenParsers[StdToken]:
 
   def tokenPos(token: StdToken): Pos = token.pos
 
-  // --- Specialized matchers: direct field checks, no closures, no accept overhead ---
+  // --- Specialized inlined matchers: compiled directly at the call site ---
 
-  private def matchToken(kind: StdTokenKind, msg: => String)(using ctx: ParseCtx): StdToken | Null =
+  private inline def matchToken(kind: StdTokenKind, msg: => String)(using ctx: ParseCtx): StdToken | Null =
     if !ctx.ok then null
     else if ctx.atEnd then
       if ctx.index >= ctx.failAt then
@@ -39,7 +39,7 @@ abstract class StdParsers(val lexer: StdLexer) extends TokenParsers[StdToken]:
         ctx.ok = false
         null
 
-  private def matchTokenText(kind: StdTokenKind, text: String, msg: => String)(using ctx: ParseCtx): StdToken | Null =
+  private inline def matchTokenText(kind: StdTokenKind, text: String, msg: => String)(using ctx: ParseCtx): StdToken | Null =
     if !ctx.ok then null
     else if ctx.atEnd then
       if ctx.index >= ctx.failAt then
@@ -60,27 +60,27 @@ abstract class StdParsers(val lexer: StdLexer) extends TokenParsers[StdToken]:
         null
 
   /** Match an identifier token, returning its text. */
-  def ident(using ctx: ParseCtx): P[String] =
+  inline def ident(using ctx: ParseCtx): P[String] =
     val tok = matchToken(StdTokenKind.Ident, "identifier")
     if tok != null then succeed(tok.text) else fail
 
   /** Match a string literal token, returning the string content. */
-  def stringLit(using ctx: ParseCtx): P[String] =
+  inline def stringLit(using ctx: ParseCtx): P[String] =
     val tok = matchToken(StdTokenKind.StringLit, "string literal")
     if tok != null then succeed(tok.text) else fail
 
   /** Match a numeric literal token, returning the text. */
-  def numericLit(using ctx: ParseCtx): P[String] =
+  inline def numericLit(using ctx: ParseCtx): P[String] =
     val tok = matchToken(StdTokenKind.NumericLit, "numeric literal")
     if tok != null then succeed(tok.text) else fail
 
   /** Match a specific keyword. */
-  def keyword(word: String)(using ctx: ParseCtx): P[String] =
+  inline def keyword(word: String)(using ctx: ParseCtx): P[String] =
     val tok = matchTokenText(StdTokenKind.Keyword, word, s"'$word'")
     if tok != null then succeed(tok.text) else fail
 
   /** Match a specific delimiter. */
-  def delimiter(d: String)(using ctx: ParseCtx): P[String] =
+  inline def delimiter(d: String)(using ctx: ParseCtx): P[String] =
     val tok = matchTokenText(StdTokenKind.Delimiter, d, s"'$d'")
     if tok != null then succeed(tok.text) else fail
 

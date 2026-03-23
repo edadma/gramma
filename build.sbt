@@ -56,8 +56,8 @@ lazy val gramma = crossProject(JSPlatform, JVMPlatform, NativePlatform)
 //      "io.github.edadma" %%% "cross_platform" % "0.0.20"
 //    ),
     libraryDependencies ++= Seq(
-      "org.scala-lang.modules" %%% "scala-parser-combinators" % "2.4.0",
-      "com.lihaoyi" %%% "fastparse" % "3.1.1",
+      "org.scala-lang.modules" %%% "scala-parser-combinators" % "2.4.0" % "test",
+      "com.lihaoyi" %%% "fastparse" % "3.1.1" % "test",
     ),
     publishMavenStyle      := true,
     Test / publishArtifact := false,

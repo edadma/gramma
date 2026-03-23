@@ -123,7 +123,7 @@ private def bench(name: String, input: String, warmup: Int, iters: Int)(f: Strin
   val opsPerSec = if elapsed > 0 then (iters * 1000.0) / elapsed else 0.0
   println(f"  $name%-14s ${usPerOp}%8.1f µs/op  ${opsPerSec}%12.0f ops/s")
 
-@main def run(args: String*): Unit =
+@main def benchmark(args: String*): Unit =
   val small = """{"name": "Alice", "age": 30, "active": true}"""
 
   val medium =

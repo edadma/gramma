@@ -8,17 +8,52 @@ abstract class Parsers[T]:
     var failAt: Int = 0
     var failMsg: String = ""
 
-    // Protected no-arg constructor for LazyParseCtx
-    protected def this() = this(null.asInstanceOf[Array[T]])
+    // --- Lazy production support (built into base class to avoid virtual dispatch) ---
+    private[gramma] var lazyBuf: Array[Any] = null
+    private[gramma] var lazyProduced: Int = 0
+    private[gramma] var lazyProducer: (() => Boolean) = null
+
+    // No-arg constructor for lazy mode
+    private[gramma] def this() = this(null.asInstanceOf[Array[T]])
+
+    private[gramma] def initLazy(producer: () => Boolean, initialCapacity: Int = 256): Unit =
+      lazyBuf = new Array[Any](initialCapacity)
+      lazyProduced = 0
+      lazyProducer = producer
+
+    private def produceUpTo(i: Int): Unit =
+      while lazyProduced <= i do
+        if !lazyProducer() then return
+        // producer must call appendToken
+
+    private[gramma] def appendToken(tok: Any): Unit =
+      if lazyProduced >= lazyBuf.length then
+        val newBuf = new Array[Any](lazyBuf.length * 2)
+        System.arraycopy(lazyBuf, 0, newBuf, 0, lazyProduced)
+        lazyBuf = newBuf
+      lazyBuf(lazyProduced) = tok
+      lazyProduced += 1
+
+    // --- Core accessors (no virtual dispatch) ---
 
     def advance(): Unit =
       index += 1
 
-    def atEnd: Boolean = index >= tokens.length
+    final def atEnd: Boolean =
+      if tokens != null then index >= tokens.length
+      else if index < lazyProduced then false
+      else
+        produceUpTo(index)
+        index >= lazyProduced
 
-    def tokenAt(i: Int): T = tokens(i)
+    final def tokenAt(i: Int): T =
+      if tokens != null then tokens(i)
+      else
+        if i >= lazyProduced then produceUpTo(i)
+        lazyBuf(i).asInstanceOf[T]
 
-    def size: Int = tokens.length
+    final def size: Int =
+      if tokens != null then tokens.length else lazyProduced
 
   // P[A] is opaque — at runtime it's just A, no wrapper.
   // Combinators are regular defs (not inline) so the opaque type is

@@ -16,43 +16,18 @@ abstract class TokenParsers[Token] extends Parsers[Token]:
       rule: ParseCtx ?=> P[A],
   ): Either[ParseError, A] =
     val lexCtx = new lexer.LexCtx(source)
-    val ctx = new LazyParseCtx(lexCtx, lexer, lexRule)
-    runParse(ctx, rule)
+    val ctx = new ParseCtx()
+    val lpc = lexCtx.asInstanceOf[lexer.ParseCtx]
 
-  private class LazyParseCtx(
-      lexCtx: Lexers#LexCtx,
-      lexer: Lexers,
-      lexRule: lexer.LexCtx ?=> lexer.P[Token],
-  ) extends ParseCtx():
-    private val buf = scala.collection.mutable.ArrayBuffer[Token]()
-    private var exhausted = false
-
-    private def produce(): Boolean =
-      if exhausted then return false
-      val lpc = lexCtx.asInstanceOf[lexer.ParseCtx]
-      if lpc.atEnd then
-        exhausted = true
-        false
+    ctx.initLazy { () =>
+      if lpc.atEnd then false
       else
         given lc: lexer.LexCtx = lexCtx.asInstanceOf[lexer.LexCtx]
         val result = lexRule
-        if !lpc.ok then
-          exhausted = true
-          false
+        if !lpc.ok then false
         else
-          buf += lexer.extractValue(result).asInstanceOf[Token]
+          ctx.appendToken(lexer.extractValue(result))
           true
+    }
 
-    private def ensure(i: Int): Unit =
-      while buf.length <= i && produce() do ()
-
-    override def atEnd: Boolean =
-      ensure(index)
-      index >= buf.length
-
-    override def tokenAt(i: Int): Token =
-      ensure(i)
-      buf(i)
-
-    override def size: Int =
-      buf.length
+    runParse(ctx, rule)

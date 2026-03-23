@@ -27,6 +27,13 @@ class JSONBenchmark:
       }.mkString(", ") +
       """], "status": "ok"}"""
 
+  val largeMl: String =
+    "{\n  \"data\": [\n" +
+      (1 to 100).map { i =>
+        s"""    {"id": $i, "name": "item$i", "tags": ["tag${i % 5}", "tag${i % 3}"], "meta": {"created": "2024-01-0${(i % 9) + 1}", "score": ${i * 1.5}}}"""
+      }.mkString(",\n") +
+      "\n  ],\n  \"status\": \"ok\"\n}"
+
   val deep: String =
     val nest = (1 to 20).foldLeft("null": String) { (inner, i) =>
       s"""{"level": $i, "child": $inner}"""
@@ -43,6 +50,9 @@ class JSONBenchmark:
 
   @Benchmark
   def grammaLarge(): Any = GrammaJSON.parse(large)
+
+  @Benchmark
+  def grammaLargeMl(): Any = GrammaJSON.parse(largeMl)
 
   @Benchmark
   def grammaDeep(): Any = GrammaJSON.parse(deep)
@@ -71,6 +81,9 @@ class JSONBenchmark:
 
   @Benchmark
   def scalaCombLarge(): Any = ScalaCombJSON.parse(large)
+
+  @Benchmark
+  def scalaCombLargeMl(): Any = ScalaCombJSON.parse(largeMl)
 
   @Benchmark
   def scalaCombDeep(): Any = ScalaCombJSON.parse(deep)

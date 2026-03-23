@@ -26,10 +26,10 @@ abstract class Parsers[T]:
 
   // --- Abstract primitive ---
 
-  def accept(pred: T => Boolean, msg: String)(using ctx: ParseCtx): P[T]
+  def accept(pred: T => Boolean, msg: => String)(using ctx: ParseCtx): P[T]
 
   // Default implementation of accept — subclasses can use this
-  protected def doAccept(pred: T => Boolean, msg: String)(using ctx: ParseCtx): P[T] =
+  protected def doAccept(pred: T => Boolean, msg: => String)(using ctx: ParseCtx): P[T] =
     if !ctx.ok then null.asInstanceOf[P[T]]
     else if ctx.atEnd then
       if ctx.index >= ctx.failAt then

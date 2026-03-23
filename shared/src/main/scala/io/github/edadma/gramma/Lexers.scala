@@ -6,27 +6,34 @@ abstract class Lexers extends Parsers[Char]:
     var line: Int = 1
     var col: Int = 1
     private var lineStart: Int = 0
+    private var lineEnd: Int = source.indexOf('\n') match
+      case -1 => source.length
+      case n  => n
+    private var lineTextCache: String = null
 
     override def advance(): Unit =
       if tokens(index) == '\n' then
         line += 1
         col = 1
         lineStart = index + 1
+        lineEnd = source.indexOf('\n', lineStart) match
+          case -1 => source.length
+          case n  => n
+        lineTextCache = null
       else
         col += 1
       super.advance()
 
     def capturePos(): Pos =
-      val lineEnd = source.indexOf('\n', index) match
-        case -1 => source.length
-        case n  => n
-      Pos(line, col, source.substring(lineStart, lineEnd))
+      if lineTextCache == null then
+        lineTextCache = source.substring(lineStart, lineEnd)
+      Pos(line, col, lineTextCache)
 
     def tokenText(start: Int): String =
       source.substring(start, index)
 
   // Implement accept for Char tokens
-  def accept(pred: Char => Boolean, msg: String)(using ctx: ParseCtx): P[Char] =
+  def accept(pred: Char => Boolean, msg: => String)(using ctx: ParseCtx): P[Char] =
     doAccept(pred, msg)
 
   // --- Character primitives ---

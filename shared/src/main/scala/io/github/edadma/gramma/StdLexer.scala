@@ -49,6 +49,12 @@ abstract class StdLexer extends Lexers:
 
   def nextToken(using ctx: LexCtx): P[StdToken] =
     skip
+    nextTokenAfterSkip
+
+  /** Tokenize one token, assuming whitespace was already skipped.
+    * Fails if at end of input — callers should check atEnd first.
+    */
+  private def nextTokenAfterSkip(using ctx: LexCtx): P[StdToken] =
     // Try custom token first
     customToken match
       case Some(tok) => return tok
@@ -146,7 +152,16 @@ abstract class StdLexer extends Lexers:
     // we don't match inside an identifier (e.g., "in" inside "int")
     true
 
-  // --- Tokenize convenience ---
+  // --- Tokenize ---
 
   def tokenize(source: String): Either[ParseError, Array[StdToken]] =
-    tokenize(source, nextToken)
+    given ctx: LexCtx = new LexCtx(source)
+    val buf = scala.collection.mutable.ArrayBuffer[StdToken]()
+    skip
+    while !ctx.atEnd do
+      val result = nextTokenAfterSkip
+      if !ctx.ok then
+        return Left(ParseError(ctx.capturePos(), ctx.failMsg))
+      buf += extract(result)
+      skip
+    Right(buf.toArray)

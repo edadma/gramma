@@ -167,6 +167,16 @@ abstract class Parsers[T]:
       if !ctx.ok then null.asInstanceOf[P[List[A]]]
       else first :: rest
 
+  def repN[A](n: Int, p: => P[A])(using ctx: ParseCtx): P[List[A]] =
+    val buf = scala.collection.mutable.ListBuffer[A]()
+    var i = 0
+    while i < n do
+      val v: A = p
+      if !ctx.ok then return null.asInstanceOf[P[List[A]]]
+      buf += v
+      i += 1
+    buf.toList
+
   def repsep[A, S](p: => P[A], sep: => P[S])(using ctx: ParseCtx): P[List[A]] =
     val savedIndex = ctx.index
     val first: A = p
@@ -251,6 +261,18 @@ abstract class Parsers[T]:
         ctx.failMsg = "unexpected match in negative lookahead"
     else
       ctx.ok = savedOk
+
+  // --- Debug ---
+
+  def log[A](p: => P[A], name: String)(using ctx: ParseCtx): P[A] =
+    val startIndex = ctx.index
+    println(s"trying $name at $startIndex")
+    val result: A = p
+    if ctx.ok then
+      println(s"  $name succeeded, consumed ${ctx.index - startIndex} (index now ${ctx.index})")
+    else
+      println(s"  $name failed at ${ctx.index}")
+    result
 
   // --- Left-associative expression parsing ---
 

@@ -217,6 +217,131 @@ class CombinatorTests extends AnyFreeSpec with Matchers:
       case Right(_)  => fail("expected unconsumed input error")
   }
 
+  // --- repN ---
+
+  "repN matches exactly N" in {
+    L.parseChars("abc") { L.repN(3, L.letter) } shouldBe Right(List('a', 'b', 'c'))
+  }
+
+  "repN(0) matches empty" in {
+    L.parseChars("") { L.repN(0, L.letter) } shouldBe Right(Nil)
+  }
+
+  "repN(1) matches one" in {
+    L.parseChars("a") { L.repN(1, L.letter) } shouldBe Right(List('a'))
+  }
+
+  "repN fails if fewer than N" in {
+    L.parseChars("ab") { L.repN(3, L.letter) } shouldBe a[Left[?, ?]]
+  }
+
+  "repN does not consume extra" in {
+    L.parseChars("abcd") { L.repN(3, L.letter) <~ L.ch('d') } shouldBe Right(List('a', 'b', 'c'))
+  }
+
+  "repN fails on empty input when N > 0" in {
+    L.parseChars("") { L.repN(1, L.letter) } shouldBe a[Left[?, ?]]
+  }
+
+  "repN propagates committed failure" in {
+    // each element is two chars; fails mid-element on second pair — '1' is not a letter
+    L.parseChars("aba1") { L.repN(2, L.letter ~ L.letter) } shouldBe a[Left[?, ?]]
+  }
+
+  // --- log ---
+
+  "log succeeds transparently" in {
+    val output = new java.io.ByteArrayOutputStream()
+    Console.withOut(output) {
+      L.parseChars("a") { L.log(L.ch('a'), "test-a") }
+    } shouldBe Right('a')
+    val logged = output.toString
+    logged should include("trying test-a")
+    logged should include("test-a succeeded")
+  }
+
+  "log reports failure transparently" in {
+    val output = new java.io.ByteArrayOutputStream()
+    Console.withOut(output) {
+      L.parseChars("b") { L.log(L.ch('a'), "test-a") }
+    } shouldBe a[Left[?, ?]]
+    output.toString should include("test-a failed")
+  }
+
+  "log does not affect parse result" in {
+    val output = new java.io.ByteArrayOutputStream()
+    val result = Console.withOut(output) {
+      L.parseChars("ab") { L.log(L.ch('a'), "first") ~ L.log(L.ch('b'), "second") }
+    }
+    result shouldBe Right(new ~('a', 'b'))
+  }
+
+  // --- Edge cases: empty input ---
+
+  "~ on empty input fails" in {
+    L.parseChars("") { L.ch('a') ~ L.ch('b') } shouldBe a[Left[?, ?]]
+  }
+
+  "~> on empty input fails" in {
+    L.parseChars("") { L.ch('a') ~> L.ch('b') } shouldBe a[Left[?, ?]]
+  }
+
+  "<~ on empty input fails" in {
+    L.parseChars("") { L.ch('a') <~ L.ch('b') } shouldBe a[Left[?, ?]]
+  }
+
+  "| on empty input fails if both branches fail" in {
+    L.parseChars("") { L.ch('a') | L.ch('b') } shouldBe a[Left[?, ?]]
+  }
+
+  "^^ on empty input fails" in {
+    L.parseChars("") { L.letter ^^ (_.toUpper) } shouldBe a[Left[?, ?]]
+  }
+
+  "rep1 on empty input fails" in {
+    L.parseChars("") { L.rep1(L.letter) } shouldBe a[Left[?, ?]]
+  }
+
+  "peek on empty input returns false" in {
+    L.parseChars("") {
+      val matched = L.peek(L.ch('a'))
+      matched shouldBe false
+      L.rep(L.letter) // consume nothing, return Nil
+    } shouldBe Right(Nil)
+  }
+
+  "not on empty input succeeds (nothing to match)" in {
+    L.parseChars("") {
+      L.not(L.ch('a'))
+      L.rep(L.letter) // consume nothing, return Nil
+    } shouldBe Right(Nil)
+  }
+
+  // --- Edge cases: chained alternation ---
+
+  "three-way alternation" in {
+    L.parseChars("c") { L.ch('a') | L.ch('b') | L.ch('c') } shouldBe Right('c')
+  }
+
+  "alternation picks first match" in {
+    L.parseChars("a") { L.ch('a') | L.ch('a') } shouldBe Right('a')
+  }
+
+  // --- Edge cases: nested repetition ---
+
+  "rep of rep" in {
+    // Inner rep consumes all letters, outer rep sees no more letters, stops
+    L.parseChars("abc") { L.rep(L.rep1(L.letter)) } shouldBe Right(List(List('a', 'b', 'c')))
+  }
+
+  // --- Edge cases: leftAssoc ---
+
+  "leftAssoc with no operators" in {
+    L.parseChars("a") {
+      L.leftAssoc(L.letter ^^ (_.toString), L.ch('+') ^^ (_.toString)) { (l, op, r) => s"($l$op$r)" }
+    } shouldBe Right("a")
+  }
+
   // --- Complex combinations ---
 
   "sequence + alternation + repetition" in {

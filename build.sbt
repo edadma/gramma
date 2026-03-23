@@ -56,8 +56,8 @@ lazy val gramma = crossProject(JSPlatform, JVMPlatform, NativePlatform)
 //      "io.github.edadma" %%% "cross_platform" % "0.0.20"
 //    ),
     libraryDependencies ++= Seq(
-//      "com.github.scopt" %%% "scopt" % "4.1.0",
-//      "com.lihaoyi" %%% "pprint" % "0.9.6" % "test",
+      "org.scala-lang.modules" %%% "scala-parser-combinators" % "2.4.0",
+      "com.lihaoyi" %%% "fastparse" % "3.1.1",
     ),
     publishMavenStyle      := true,
     Test / publishArtifact := false,
@@ -80,17 +80,6 @@ lazy val gramma = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     Test / scalaJSUseTestModuleInitializer := true,
     scalaJSUseMainModuleInitializer        := true,
 //    libraryDependencies += "io.github.cquiroz" %%% "scala-java-time" % "2.6.0",
-  )
-
-lazy val bench = project
-  .in(file("bench"))
-  .dependsOn(gramma.jvm)
-  .enablePlugins(JmhPlugin)
-  .settings(
-    name := "gramma-bench",
-    libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "2.4.0",
-    libraryDependencies += "com.lihaoyi" %% "fastparse" % "3.1.1",
-    publish / skip := true,
   )
 
 lazy val root = project

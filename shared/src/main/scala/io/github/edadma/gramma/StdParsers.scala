@@ -103,6 +103,13 @@ abstract class StdParsers(val lexer: StdLexer) extends TokenParsers[StdToken]:
   def block[A](p: => P[A])(using ctx: ParseCtx): P[A] =
     indent ~> p <~ dedent
 
+  /** Implicit conversion: bare strings match keywords or delimiters automatically.
+    * Allows writing `"if" ~> expr` instead of `keyword("if") ~> expr`.
+    */
+  implicit def stringToParser(s: String)(using ctx: ParseCtx): P[String] =
+    if lexer.reserved.contains(s) then keyword(s)
+    else delimiter(s)
+
   /** Parse source string — tokenizes with the paired lexer then parses. */
   def parseSource[A](source: String)(rule: ParseCtx ?=> P[A]): Either[ParseError, A] =
     for

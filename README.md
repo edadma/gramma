@@ -84,15 +84,35 @@ JSONParser.parseSource("""{"name": "Alice", "age": 30}""")(JSONParser.value)
 
 ## Performance
 
-Benchmarked against fastparse and scala-parser-combinators parsing JSON (ops/s, higher is better):
+Benchmarked against [fastparse](https://com-lihaoyi.github.io/fastparse/) and [scala-parser-combinators](https://github.com/scala/scala-parser-combinators) parsing JSON on all three platforms. Times in microseconds (lower is better):
+
+### JVM
 
 | Input | gramma | fastparse | scala-combinators |
 |---|---|---|---|
-| **Small** (44 chars) | 1,984K | 3,518K | 40K |
-| **Medium** (1.6K chars) | 83K | 114K | 1.5K |
-| **Large** (10.6K chars) | 11K | 16K | 14K |
+| **Small** (44 chars) | 1.6 µs | 0.4 µs | 25 µs |
+| **Medium** (1.6K chars) | 13 µs | 9 µs | 671 µs |
+| **Large** (11K chars) | 96 µs | 72 µs | 72 µs |
 
-Gramma is within 60-75% of fastparse and 50x faster than scala-combinators on typical inputs. A 10K source file parses in ~90 microseconds.
+### Scala Native (releaseFast)
+
+| Input | gramma | fastparse | scala-combinators |
+|---|---|---|---|
+| **Small** (44 chars) | 2.4 µs | 0.7 µs | 65 µs |
+| **Medium** (1.6K chars) | 61 µs | 18 µs | 1,650 µs |
+| **Large** (11K chars) | 463 µs | 148 µs | 170 µs |
+
+### Scala.js (Node/V8)
+
+| Input | gramma | fastparse | scala-combinators |
+|---|---|---|---|
+| **Small** (44 chars) | 3.0 µs | 1.3 µs | 54 µs |
+| **Medium** (1.6K chars) | 83 µs | 31 µs | 1,498 µs |
+| **Large** (11K chars) | 627 µs | 278 µs | 206 µs |
+
+On small/medium inputs (typical source files), gramma is **15-50x faster** than scala-combinators across all platforms. Fastparse is faster due to macro-generated code, but gramma provides separate lexing/parsing phases with proper token types and source positions — features fastparse lacks.
+
+A 1.6K source file parses in **13 µs on JVM**, **61 µs on Native**, **83 µs on JS**.
 
 ## Combinators
 

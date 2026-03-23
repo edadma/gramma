@@ -110,7 +110,7 @@ Benchmarked against [fastparse](https://com-lihaoyi.github.io/fastparse/) and [s
 | **Medium** (1.6K chars) | 83 µs | 31 µs | 1,498 µs |
 | **Large** (11K chars) | 627 µs | 278 µs | 206 µs |
 
-On small/medium inputs (typical source files), gramma is **15-50x faster** than scala-combinators across all platforms. Fastparse is faster due to macro-generated code, but gramma provides separate lexing/parsing phases with proper token types and source positions — features fastparse lacks.
+On small/medium inputs (typical source files), gramma is **15-50x faster** than scala-combinators across all platforms. Fastparse is faster due to macro-generated code. Gramma's design focuses on separate lexing/parsing phases with proper token types and source positions.
 
 A 1.6K source file parses in **13 µs on JVM**, **61 µs on Native**, **83 µs on JS**.
 

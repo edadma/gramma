@@ -13,12 +13,16 @@ abstract class Parsers[T]:
 
     def atEnd: Boolean = index >= tokens.length
 
-  // P[A] is opaque — at runtime it's just A, no wrapper
+  // P[A] is opaque — at runtime it's just A, no wrapper.
+  // Combinators are regular defs (not inline) so the opaque type is
+  // transparent in their bodies. The real performance wins come from
+  // mutable context and zero allocation, not from inlining.
   opaque type P[A] = A
 
-  // Helpers for subclasses to construct P values across the opaque boundary
+  // Helpers for subclasses to work across the opaque boundary
   protected def succeed[A](a: A): P[A] = a
   protected def fail[A]: P[A] = null.asInstanceOf[P[A]]
+  protected def extract[A](p: P[A]): A = p
 
   // --- Abstract primitive ---
 
@@ -48,39 +52,39 @@ abstract class Parsers[T]:
   // --- Sequencing ---
 
   extension [A](a: P[A])
-    inline def ~[B](inline b: => P[B])(using ctx: ParseCtx): P[A ~ B] =
+    def ~[B](b: => P[B])(using ctx: ParseCtx): P[A ~ B] =
       if !ctx.ok then null.asInstanceOf[P[A ~ B]]
       else
-        val av = a
+        val av: A = a
         if !ctx.ok then null.asInstanceOf[P[A ~ B]]
         else
-          val bv = b
+          val bv: B = b
           if !ctx.ok then null.asInstanceOf[P[A ~ B]]
           else new ~(av, bv)
 
-    inline def ~>[B](inline b: => P[B])(using ctx: ParseCtx): P[B] =
+    def ~>[B](b: => P[B])(using ctx: ParseCtx): P[B] =
       if !ctx.ok then null.asInstanceOf[P[B]]
       else
-        val _ = a
+        val _: A = a
         if !ctx.ok then null.asInstanceOf[P[B]]
         else b
 
-    inline def <~[B](inline b: => P[B])(using ctx: ParseCtx): P[A] =
+    def <~[B](b: => P[B])(using ctx: ParseCtx): P[A] =
       if !ctx.ok then null.asInstanceOf[P[A]]
       else
-        val av = a
+        val av: A = a
         if !ctx.ok then null.asInstanceOf[P[A]]
         else
-          val _ = b
+          val _: B = b
           if !ctx.ok then null.asInstanceOf[P[A]]
           else av
 
   // --- Alternation (committed choice) ---
 
-  extension [A](inline a: => P[A])
-    inline def |[B >: A](inline b: => P[B])(using ctx: ParseCtx): P[B] =
+  extension [A](a: => P[A])
+    def |[B >: A](b: => P[B])(using ctx: ParseCtx): P[B] =
       val savedIndex = ctx.index
-      val result = a
+      val result: A = a
       if ctx.ok then result
       else if ctx.index > savedIndex then result // consumed input — committed, propagate failure
       else
@@ -90,19 +94,19 @@ abstract class Parsers[T]:
   // --- Mapping ---
 
   extension [A](a: P[A])
-    inline def ^^[B](inline f: A => B)(using ctx: ParseCtx): P[B] =
+    def ^^[B](f: A => B)(using ctx: ParseCtx): P[B] =
       if !ctx.ok then null.asInstanceOf[P[B]]
       else f(a)
 
   // --- Repetition ---
 
-  inline def rep[A](inline p: => P[A])(using ctx: ParseCtx): P[List[A]] =
+  def rep[A](p: => P[A])(using ctx: ParseCtx): P[List[A]] =
     val buf = scala.collection.mutable.ListBuffer[A]()
     var continue = true
     var hardFail = false
     while continue && !hardFail do
       val savedIndex = ctx.index
-      val v = p
+      val v: A = p
       if ctx.ok then buf += v
       else if ctx.index > savedIndex then
         hardFail = true
@@ -112,17 +116,17 @@ abstract class Parsers[T]:
     if hardFail then null.asInstanceOf[P[List[A]]]
     else buf.toList
 
-  inline def rep1[A](inline p: => P[A])(using ctx: ParseCtx): P[List[A]] =
-    val first = p
+  def rep1[A](p: => P[A])(using ctx: ParseCtx): P[List[A]] =
+    val first: A = p
     if !ctx.ok then null.asInstanceOf[P[List[A]]]
     else
-      val rest = rep(p)
+      val rest: List[A] = rep(p)
       if !ctx.ok then null.asInstanceOf[P[List[A]]]
       else first :: rest
 
-  inline def repsep[A](inline p: => P[A], inline sep: => P[Any])(using ctx: ParseCtx): P[List[A]] =
+  def repsep[A, S](p: => P[A], sep: => P[S])(using ctx: ParseCtx): P[List[A]] =
     val savedIndex = ctx.index
-    val first = p
+    val first: A = p
     if !ctx.ok then
       if ctx.index > savedIndex then null.asInstanceOf[P[List[A]]]
       else
@@ -134,21 +138,21 @@ abstract class Parsers[T]:
       var hardFail = false
       while continue && !hardFail do
         val sepIndex = ctx.index
-        val _ = sep
+        val _: S = sep
         if !ctx.ok then
           if ctx.index > sepIndex then hardFail = true
           else
             ctx.ok = true
             continue = false
         else
-          val v = p
+          val v: A = p
           if !ctx.ok then hardFail = true
           else buf += v
       if hardFail then null.asInstanceOf[P[List[A]]]
       else buf.toList
 
-  inline def rep1sep[A](inline p: => P[A], inline sep: => P[Any])(using ctx: ParseCtx): P[List[A]] =
-    val first = p
+  def rep1sep[A, S](p: => P[A], sep: => P[S])(using ctx: ParseCtx): P[List[A]] =
+    val first: A = p
     if !ctx.ok then null.asInstanceOf[P[List[A]]]
     else
       val buf = scala.collection.mutable.ListBuffer[A](first)
@@ -156,14 +160,14 @@ abstract class Parsers[T]:
       var hardFail = false
       while continue && !hardFail do
         val sepIndex = ctx.index
-        val _ = sep
+        val _: S = sep
         if !ctx.ok then
           if ctx.index > sepIndex then hardFail = true
           else
             ctx.ok = true
             continue = false
         else
-          val v = p
+          val v: A = p
           if !ctx.ok then hardFail = true
           else buf += v
       if hardFail then null.asInstanceOf[P[List[A]]]
@@ -171,9 +175,9 @@ abstract class Parsers[T]:
 
   // --- Optional ---
 
-  inline def opt[A](inline p: => P[A])(using ctx: ParseCtx): P[Option[A]] =
+  def opt[A](p: => P[A])(using ctx: ParseCtx): P[Option[A]] =
     val savedIndex = ctx.index
-    val v = p
+    val v: A = p
     if ctx.ok then Some(v)
     else if ctx.index > savedIndex then null.asInstanceOf[P[Option[A]]]
     else
@@ -182,19 +186,19 @@ abstract class Parsers[T]:
 
   // --- Lookahead ---
 
-  inline def peek[A](inline p: => P[A])(using ctx: ParseCtx): Boolean =
+  def peek[A](p: => P[A])(using ctx: ParseCtx): Boolean =
     val savedIndex = ctx.index
     val savedOk = ctx.ok
-    val _ = p
+    val _: A = p
     val matched = ctx.ok
     ctx.index = savedIndex
     ctx.ok = savedOk
     matched
 
-  inline def not[A](inline p: => P[A])(using ctx: ParseCtx): Unit =
+  def not[A](p: => P[A])(using ctx: ParseCtx): Unit =
     val savedIndex = ctx.index
     val savedOk = ctx.ok
-    val _ = p
+    val _: A = p
     val matched = ctx.ok
     ctx.index = savedIndex
     if matched then
@@ -207,23 +211,23 @@ abstract class Parsers[T]:
 
   // --- Left-associative expression parsing ---
 
-  inline def leftAssoc[A](inline p: => P[A], inline op: => P[String])(f: (A, String, A) => A)(using ctx: ParseCtx): P[A] =
-    val first = p
+  def leftAssoc[A](p: => P[A], op: => P[String])(f: (A, String, A) => A)(using ctx: ParseCtx): P[A] =
+    val first: A = p
     if !ctx.ok then null.asInstanceOf[P[A]]
     else
-      var result = first
+      var result: A = first
       var continue = true
       var hardFail = false
       while continue && !hardFail do
         val savedIndex = ctx.index
-        val o = op
+        val o: String = op
         if !ctx.ok then
           if ctx.index > savedIndex then hardFail = true
           else
             ctx.ok = true
             continue = false
         else
-          val right = p
+          val right: A = p
           if !ctx.ok then hardFail = true
           else result = f(result, o, right)
       if hardFail then null.asInstanceOf[P[A]]
@@ -231,9 +235,9 @@ abstract class Parsers[T]:
 
   // --- Positioned ---
 
-  inline def positioned[A <: Positional](inline p: => P[A])(using ctx: ParseCtx): P[A] =
+  def positioned[A <: Positional](p: => P[A])(using ctx: ParseCtx): P[A] =
     val startIndex = ctx.index
-    val result = p
+    val result: A = p
     if ctx.ok && startIndex < ctx.tokens.length then
       positionOf(ctx.tokens(startIndex)).foreach(result.setPos)
     result
@@ -245,7 +249,7 @@ abstract class Parsers[T]:
 
   def parse[A](tokens: Array[T], rule: ParseCtx ?=> P[A]): Either[ParseError, A] =
     given ctx: ParseCtx = new ParseCtx(tokens)
-    val result = rule
+    val result: A = rule
     if !ctx.ok then
       val pos =
         if ctx.failAt < tokens.length then

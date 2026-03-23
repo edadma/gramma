@@ -208,12 +208,12 @@ abstract class Lexers extends Parsers[Char]:
 
   // --- Tokenize entry point ---
 
-  def tokenize[Token](source: String, rule: LexCtx ?=> P[Token]): Either[ParseError, Array[Token]] =
+  def tokenize[Tok: scala.reflect.ClassTag](source: String, rule: LexCtx ?=> P[Tok]): Either[ParseError, Array[Tok]] =
     given ctx: LexCtx = new LexCtx(source)
-    val buf = scala.collection.mutable.ArrayBuffer[Any]()
+    val buf = scala.collection.mutable.ArrayBuffer[Tok]()
     while !ctx.atEnd do
-      val result: Any = rule
+      val result = rule
       if !ctx.ok then
         return Left(ParseError(ctx.capturePos(), ctx.failMsg))
-      buf += result
-    Right(buf.toArray.asInstanceOf[Array[Token]])
+      buf += extract(result)
+    Right(buf.toArray)

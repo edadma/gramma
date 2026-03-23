@@ -82,6 +82,16 @@ lazy val gramma = crossProject(JSPlatform, JVMPlatform, NativePlatform)
 //    libraryDependencies += "io.github.cquiroz" %%% "scala-java-time" % "2.6.0",
   )
 
+lazy val bench = project
+  .in(file("bench"))
+  .dependsOn(gramma.jvm)
+  .enablePlugins(JmhPlugin)
+  .settings(
+    name := "gramma-bench",
+    libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "2.4.0",
+    publish / skip := true,
+  )
+
 lazy val root = project
   .in(file("."))
   .aggregate(gramma.js, gramma.jvm, gramma.native)

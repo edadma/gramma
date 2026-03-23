@@ -34,6 +34,22 @@ class JSONBenchmark:
       }.mkString(",\n") +
       "\n  ],\n  \"status\": \"ok\"\n}"
 
+  // ~50K chars, ~15K tokens — simulates a large source file
+  val huge: String =
+    "{\n  \"data\": [\n" +
+      (1 to 500).map { i =>
+        s"""    {"id": $i, "name": "item_$i", "email": "user$i@example.com", "tags": ["tag${i % 5}", "tag${i % 3}", "tag${i % 7}"], "meta": {"created": "2024-01-0${(i % 9) + 1}", "score": ${i * 1.5}, "active": ${i % 2 == 0}}}"""
+      }.mkString(",\n") +
+      "\n  ],\n  \"status\": \"ok\",\n  \"total\": 500\n}"
+
+  // ~100K chars, ~30K tokens — stress test
+  val massive: String =
+    "{\n  \"data\": [\n" +
+      (1 to 1000).map { i =>
+        s"""    {"id": $i, "name": "item_$i", "email": "user$i@example.com", "tags": ["tag${i % 5}", "tag${i % 3}", "tag${i % 7}"], "meta": {"created": "2024-01-0${(i % 9) + 1}", "score": ${i * 1.5}, "active": ${i % 2 == 0}}}"""
+      }.mkString(",\n") +
+      "\n  ],\n  \"status\": \"ok\",\n  \"total\": 1000\n}"
+
   val deep: String =
     val nest = (1 to 20).foldLeft("null": String) { (inner, i) =>
       s"""{"level": $i, "child": $inner}"""
@@ -74,6 +90,12 @@ class JSONBenchmark:
   @Benchmark
   def grammaStdDeep(): Any = GrammaStdJSON.parse(deep)
 
+  @Benchmark
+  def grammaStdHuge(): Any = GrammaStdJSON.parse(huge)
+
+  @Benchmark
+  def grammaStdMassive(): Any = GrammaStdJSON.parse(massive)
+
   // --- Gramma lazy benchmarks (on-demand tokenization) ---
 
   @Benchmark
@@ -105,6 +127,12 @@ class JSONBenchmark:
   @Benchmark
   def scalaCombDeep(): Any = ScalaCombJSON.parse(deep)
 
+  @Benchmark
+  def scalaCombHuge(): Any = ScalaCombJSON.parse(huge)
+
+  @Benchmark
+  def scalaCombMassive(): Any = ScalaCombJSON.parse(massive)
+
   // --- Packrat combinator benchmarks (lex + memoized parse) ---
 
   @Benchmark
@@ -118,3 +146,23 @@ class JSONBenchmark:
 
   @Benchmark
   def packratDeep(): Any = PackratJSON.parse(deep)
+
+  // --- Fastparse benchmarks (single-phase character parser) ---
+
+  @Benchmark
+  def fastparseSmall(): Any = FastparseJSON.parse(small)
+
+  @Benchmark
+  def fastparseMedium(): Any = FastparseJSON.parse(medium)
+
+  @Benchmark
+  def fastparseLarge(): Any = FastparseJSON.parse(large)
+
+  @Benchmark
+  def fastparseHuge(): Any = FastparseJSON.parse(huge)
+
+  @Benchmark
+  def fastparseMassive(): Any = FastparseJSON.parse(massive)
+
+  @Benchmark
+  def fastparseDeep(): Any = FastparseJSON.parse(deep)

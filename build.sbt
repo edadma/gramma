@@ -89,6 +89,7 @@ lazy val bench = project
   .settings(
     name := "gramma-bench",
     libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "2.4.0",
+    libraryDependencies += "com.lihaoyi" %% "fastparse" % "3.1.1",
     publish / skip := true,
   )
 

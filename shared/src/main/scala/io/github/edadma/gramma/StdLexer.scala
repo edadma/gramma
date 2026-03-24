@@ -158,8 +158,6 @@ abstract class StdLexer extends Lexers:
     while i < d.length do
       if ctx.tokens(ctx.index + i) != d.charAt(i) then return false
       i += 1
-    // For multi-char delimiters starting with identifier chars, ensure
-    // we don't match inside an identifier (e.g., "in" inside "int")
     true
 
   // --- Tokenize ---

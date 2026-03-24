@@ -40,7 +40,7 @@ No token types to define, no lexer rules to write. Identifiers, strings, numbers
 ## Installation
 
 ```scala
-libraryDependencies += "io.github.edadma" %%% "gramma" % "0.0.1"
+libraryDependencies += "io.github.edadma" %%% "gramma" % "0.0.2"
 ```
 
 Cross-compiled for JVM, Scala.js, and Scala Native.

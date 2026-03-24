@@ -36,7 +36,7 @@ abstract class Parsers[T]:
 
     // --- Core accessors (no virtual dispatch) ---
 
-    def advance(): Unit =
+    final def advance(): Unit =
       index += 1
 
     final def atEnd: Boolean =
@@ -56,6 +56,9 @@ abstract class Parsers[T]:
       if tokens != null then tokens.length else lazyProduced
 
   // P[A] is opaque — at runtime it's just A, no wrapper.
+  // Kept opaque (not a type alias) so that null.asInstanceOf[P[A]]
+  // erases safely to Object, and to enable future inline combinators
+  // once Scala supports inline + opaque together cleanly.
   opaque type P[A] = A
 
   // Helpers for subclasses to work across the opaque boundary

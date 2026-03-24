@@ -237,26 +237,35 @@ class LexerTests extends AnyFreeSpec with Matchers:
   // --- Position tracking ---
 
   "capturePos reports correct line and column" in {
-    L.runLex("abc") {
+    val Right(pos) = L.runLex("abc") {
       summon[L.LexCtx].capturePos()
-    } shouldBe Right(Pos(1, 1, "abc"))
+    }: @unchecked
+    pos.line shouldBe 1
+    pos.col shouldBe 1
+    pos.lineText shouldBe "abc"
   }
 
   "capturePos tracks across newlines" in {
-    L.runLex("ab\ncd\nef") {
+    val Right(pos) = L.runLex("ab\ncd\nef") {
       val ctx = summon[L.LexCtx]
       ctx.advance(); ctx.advance(); ctx.advance() // past "ab\n"
       ctx.advance() // past "c"
       ctx.capturePos()
-    } shouldBe Right(Pos(2, 2, "cd"))
+    }: @unchecked
+    pos.line shouldBe 2
+    pos.col shouldBe 2
+    pos.lineText shouldBe "cd"
   }
 
   "capturePos lineText is correct" in {
-    L.runLex("first line\nsecond line\nthird") {
+    val Right(pos) = L.runLex("first line\nsecond line\nthird") {
       val ctx = summon[L.LexCtx]
       var i = 0; while i < 11 do { ctx.advance(); i += 1 } // past "first line\n"
       ctx.capturePos()
-    } shouldBe Right(Pos(2, 1, "second line"))
+    }: @unchecked
+    pos.line shouldBe 2
+    pos.col shouldBe 1
+    pos.lineText shouldBe "second line"
   }
 
   // --- Tokenize ---

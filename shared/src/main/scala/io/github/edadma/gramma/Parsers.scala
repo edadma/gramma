@@ -56,9 +56,6 @@ abstract class Parsers[T]:
       if tokens != null then tokens.length else lazyProduced
 
   // P[A] is opaque — at runtime it's just A, no wrapper.
-  // Combinators are regular defs (not inline) so the opaque type is
-  // transparent in their bodies. The real performance wins come from
-  // mutable context and zero allocation, not from inlining.
   opaque type P[A] = A
 
   // Helpers for subclasses to work across the opaque boundary
@@ -71,7 +68,6 @@ abstract class Parsers[T]:
 
   def accept(pred: T => Boolean, msg: => String)(using ctx: ParseCtx): P[T]
 
-  // Default implementation of accept — subclasses can use this
   protected def doAccept(pred: T => Boolean, msg: => String)(using ctx: ParseCtx): P[T] =
     if !ctx.ok then null.asInstanceOf[P[T]]
     else if ctx.atEnd then
@@ -127,9 +123,9 @@ abstract class Parsers[T]:
   extension [A](a: => P[A])
     def |[B >: A](b: => P[B])(using ctx: ParseCtx): P[B] =
       val savedIndex = ctx.index
-      val result: A = a
+      val result: A  = a
       if ctx.ok then result
-      else if ctx.index > savedIndex then result // consumed input — committed, propagate failure
+      else if ctx.index > savedIndex then result // consumed input — committed
       else
         ctx.ok = true
         b
@@ -144,15 +140,14 @@ abstract class Parsers[T]:
   // --- Repetition ---
 
   def rep[A](p: => P[A])(using ctx: ParseCtx): P[List[A]] =
-    val buf = scala.collection.mutable.ListBuffer[A]()
+    val buf      = scala.collection.mutable.ListBuffer[A]()
     var continue = true
     var hardFail = false
     while continue && !hardFail do
       val savedIndex = ctx.index
-      val v: A = p
+      val v: A       = p
       if ctx.ok then buf += v
-      else if ctx.index > savedIndex then
-        hardFail = true
+      else if ctx.index > savedIndex then hardFail = true
       else
         ctx.ok = true
         continue = false
@@ -169,7 +164,7 @@ abstract class Parsers[T]:
 
   def repN[A](n: Int, p: => P[A])(using ctx: ParseCtx): P[List[A]] =
     val buf = scala.collection.mutable.ListBuffer[A]()
-    var i = 0
+    var i   = 0
     while i < n do
       val v: A = p
       if !ctx.ok then return null.asInstanceOf[P[List[A]]]
@@ -179,19 +174,19 @@ abstract class Parsers[T]:
 
   def repsep[A, S](p: => P[A], sep: => P[S])(using ctx: ParseCtx): P[List[A]] =
     val savedIndex = ctx.index
-    val first: A = p
+    val first: A   = p
     if !ctx.ok then
       if ctx.index > savedIndex then null.asInstanceOf[P[List[A]]]
       else
         ctx.ok = true
         Nil
     else
-      val buf = scala.collection.mutable.ListBuffer[A](first)
+      val buf      = scala.collection.mutable.ListBuffer[A](first)
       var continue = true
       var hardFail = false
       while continue && !hardFail do
         val sepIndex = ctx.index
-        val _: S = sep
+        val _: S     = sep
         if !ctx.ok then
           if ctx.index > sepIndex then hardFail = true
           else
@@ -208,12 +203,12 @@ abstract class Parsers[T]:
     val first: A = p
     if !ctx.ok then null.asInstanceOf[P[List[A]]]
     else
-      val buf = scala.collection.mutable.ListBuffer[A](first)
+      val buf      = scala.collection.mutable.ListBuffer[A](first)
       var continue = true
       var hardFail = false
       while continue && !hardFail do
         val sepIndex = ctx.index
-        val _: S = sep
+        val _: S     = sep
         if !ctx.ok then
           if ctx.index > sepIndex then hardFail = true
           else
@@ -230,7 +225,7 @@ abstract class Parsers[T]:
 
   def opt[A](p: => P[A])(using ctx: ParseCtx): P[Option[A]] =
     val savedIndex = ctx.index
-    val v: A = p
+    val v: A       = p
     if ctx.ok then Some(v)
     else if ctx.index > savedIndex then null.asInstanceOf[P[Option[A]]]
     else
@@ -241,18 +236,18 @@ abstract class Parsers[T]:
 
   def peek[A](p: => P[A])(using ctx: ParseCtx): Boolean =
     val savedIndex = ctx.index
-    val savedOk = ctx.ok
-    val _: A = p
-    val matched = ctx.ok
+    val savedOk    = ctx.ok
+    val _: A       = p
+    val matched    = ctx.ok
     ctx.index = savedIndex
     ctx.ok = savedOk
     matched
 
   def not[A](p: => P[A])(using ctx: ParseCtx): Unit =
     val savedIndex = ctx.index
-    val savedOk = ctx.ok
-    val _: A = p
-    val matched = ctx.ok
+    val savedOk    = ctx.ok
+    val _: A       = p
+    val matched    = ctx.ok
     ctx.index = savedIndex
     if matched then
       ctx.ok = false
@@ -280,12 +275,12 @@ abstract class Parsers[T]:
     val first: A = p
     if !ctx.ok then null.asInstanceOf[P[A]]
     else
-      var result: A = first
+      var result   = first
       var continue = true
       var hardFail = false
       while continue && !hardFail do
         val savedIndex = ctx.index
-        val o: String = op
+        val o: String  = op
         if !ctx.ok then
           if ctx.index > savedIndex then hardFail = true
           else
@@ -302,12 +297,11 @@ abstract class Parsers[T]:
 
   def positioned[A <: Positional](p: => P[A])(using ctx: ParseCtx): P[A] =
     val startIndex = ctx.index
-    val result: A = p
+    val result: A  = p
     if ctx.ok && startIndex < ctx.size then
       positionOf(ctx.tokenAt(startIndex)).foreach(result.setPos)
     result
 
-  // Override in TokenParsers to extract Pos from tokens
   protected def positionOf(token: T): Option[Pos] = None
 
   // --- Entry point ---
@@ -317,22 +311,22 @@ abstract class Parsers[T]:
 
   protected def runParse[A](ctx: ParseCtx, rule: ParseCtx ?=> P[A]): Either[ParseError, A] =
     given ParseCtx = ctx
-    val result: A = rule
+    val result: A  = rule
     if !ctx.ok then
       val pos =
         if ctx.failAt < ctx.size then
-          positionOf(ctx.tokenAt(ctx.failAt)).getOrElse(Pos(0, 0, ""))
+          positionOf(ctx.tokenAt(ctx.failAt)).getOrElse(Pos(0, ""))
         else if ctx.size > 0 then
-          positionOf(ctx.tokenAt(ctx.size - 1)).getOrElse(Pos(0, 0, ""))
+          positionOf(ctx.tokenAt(ctx.size - 1)).getOrElse(Pos(0, ""))
         else
-          Pos(0, 0, "")
+          Pos(0, "")
       Left(ParseError(pos, ctx.failMsg))
     else if !ctx.atEnd then
       val pos =
         if ctx.index < ctx.size then
-          positionOf(ctx.tokenAt(ctx.index)).getOrElse(Pos(0, 0, ""))
+          positionOf(ctx.tokenAt(ctx.index)).getOrElse(Pos(0, ""))
         else
-          Pos(0, 0, "")
+          Pos(0, "")
       Left(ParseError(pos, s"expected end of input"))
     else
       Right(result)

@@ -181,15 +181,15 @@ class StdLexerTests extends AnyFreeSpec with Matchers:
 
   "positions are correct" in {
     val tokens = TestLexer.tokenize("x + 42").toOption.get
-    tokens(0).pos shouldBe Pos(1, 1, "x + 42")
-    tokens(1).pos shouldBe Pos(1, 3, "x + 42")
-    tokens(2).pos shouldBe Pos(1, 5, "x + 42")
+    tokens(0).pos.line shouldBe 1; tokens(0).pos.col shouldBe 1
+    tokens(1).pos.line shouldBe 1; tokens(1).pos.col shouldBe 3
+    tokens(2).pos.line shouldBe 1; tokens(2).pos.col shouldBe 5
   }
 
   "multiline positions" in {
     val tokens = TestLexer.tokenize("x\ny").toOption.get
-    tokens(0).pos shouldBe Pos(1, 1, "x")
-    tokens(1).pos shouldBe Pos(2, 1, "y")
+    tokens(0).pos.line shouldBe 1; tokens(0).pos.col shouldBe 1
+    tokens(1).pos.line shouldBe 2; tokens(1).pos.col shouldBe 1
   }
 
   // --- Error cases ---

@@ -3,34 +3,14 @@ package io.github.edadma.gramma
 abstract class Lexers extends Parsers[Char]:
 
   class LexCtx(val source: String) extends ParseCtx(source.toCharArray):
-    var line: Int = 1
-    var col: Int = 1
-    private var lineStart: Int = 0
-    private var lineEnd: Int = source.indexOf('\n') match
-      case -1 => source.length
-      case n  => n
-    private var lineTextCache: String = null
 
-    override def advance(): Unit =
-      if tokens(index) == '\n' then
-        line += 1
-        col = 1
-        lineStart = index + 1
-        lineEnd = source.indexOf('\n', lineStart) match
-          case -1 => source.length
-          case n  => n
-        lineTextCache = null
-      else
-        col += 1
-      super.advance()
+    /** Snapshot the current parser position as a raw offset.
+      * Line, column, and line text are computed lazily from `source` only
+      * when the position is actually rendered (i.e. on parse error).
+      */
+    def capturePos(): Pos = Pos(index, source)
 
-    def capturePos(): Pos =
-      if lineTextCache == null then
-        lineTextCache = source.substring(lineStart, lineEnd)
-      Pos(line, col, lineTextCache)
-
-    def tokenText(start: Int): String =
-      source.substring(start, index)
+    def tokenText(start: Int): String = source.substring(start, index)
 
   // Implement accept for Char tokens
   def accept(pred: Char => Boolean, msg: => String)(using ctx: ParseCtx): P[Char] =
@@ -100,7 +80,7 @@ abstract class Lexers extends Parsers[Char]:
 
   def stringLit(quote: Char, escape: Char)(using ctx: ParseCtx): P[String] =
     val sb = new StringBuilder
-    val q = char(quote)
+    val q  = char(quote)
     if !ctx.ok then return fail
     while !ctx.atEnd && ctx.tokens(ctx.index) != quote do
       if ctx.tokens(ctx.index) == escape then
@@ -113,13 +93,13 @@ abstract class Lexers extends Parsers[Char]:
           return fail
         val escaped = ctx.tokens(ctx.index)
         val ch = escaped match
-          case 'n'  => '\n'
-          case 't'  => '\t'
-          case 'r'  => '\r'
-          case '\\' => '\\'
-          case c if c == quote => quote
+          case 'n'              => '\n'
+          case 't'              => '\t'
+          case 'r'              => '\r'
+          case '\\'             => '\\'
+          case c if c == quote  => quote
           case c if c == escape => escape
-          case c    => c
+          case c                => c
         sb.append(ch)
         ctx.advance()
       else
@@ -142,7 +122,7 @@ abstract class Lexers extends Parsers[Char]:
 
   def lineComment(start: String)(using ctx: ParseCtx): P[Unit] =
     val savedIndex = ctx.index
-    val s = str(start)
+    val s          = str(start)
     if !ctx.ok then
       ctx.index = savedIndex
       ctx.ok = true
@@ -153,7 +133,7 @@ abstract class Lexers extends Parsers[Char]:
 
   def blockComment(open: String, close: String, nested: Boolean)(using ctx: ParseCtx): P[Unit] =
     val savedIndex = ctx.index
-    val o = str(open)
+    val o          = str(open)
     if !ctx.ok then
       ctx.index = savedIndex
       ctx.ok = true
@@ -203,7 +183,9 @@ abstract class Lexers extends Parsers[Char]:
       if ctx.index == saved then continue = false
     succeed(())
 
-  def skipWhitespace(lineCommentStart: String, blockOpen: String, blockClose: String, nestedComments: Boolean)(using ctx: ParseCtx): P[Unit] =
+  def skipWhitespace(lineCommentStart: String, blockOpen: String, blockClose: String, nestedComments: Boolean)(
+      using ctx: ParseCtx,
+  ): P[Unit] =
     var continue = true
     while continue do
       val saved = ctx.index
@@ -236,7 +218,7 @@ abstract class Lexers extends Parsers[Char]:
 
   def tokenize[Tok: scala.reflect.ClassTag](source: String, rule: LexCtx ?=> P[Tok]): Either[ParseError, Array[Tok]] =
     given ctx: LexCtx = new LexCtx(source)
-    val buf = scala.collection.mutable.ArrayBuffer[Tok]()
+    val buf            = scala.collection.mutable.ArrayBuffer[Tok]()
     while !ctx.atEnd do
       val result = rule
       if !ctx.ok then

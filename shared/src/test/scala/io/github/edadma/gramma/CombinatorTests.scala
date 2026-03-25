@@ -342,6 +342,60 @@ class CombinatorTests extends AnyFreeSpec with Matchers:
     } shouldBe Right("a")
   }
 
+  // --- FlatMap (>>) ---
+
+  ">> uses result to select next parser" in {
+    // Parse a digit, then that many letters
+    L.parseChars("3abc") {
+      L.digit >> { d =>
+        L.repN(d.asDigit, L.letter)
+      }
+    } shouldBe Right(List('a', 'b', 'c'))
+  }
+
+  ">> propagates failure from first parser" in {
+    L.parseChars("xabc") {
+      L.digit >> { d =>
+        L.repN(d.asDigit, L.letter)
+      }
+    } shouldBe a[Left[?, ?]]
+  }
+
+  ">> propagates failure from selected parser" in {
+    L.parseChars("3ab1") {
+      L.digit >> { d =>
+        L.repN(d.asDigit, L.letter)
+      }
+    } shouldBe a[Left[?, ?]]
+  }
+
+  ">> enables common-prefix factoring" in {
+    // Parse 'a' then decide based on what follows: 'b' → "ab", 'c' → "ac"
+    L.parseChars("ac") {
+      L.ch('a') >> { a =>
+        L.ch('b') ^^ (b => s"$a$b") | L.ch('c') ^^ (c => s"$a$c")
+      }
+    } shouldBe Right("ac")
+  }
+
+  ">> common-prefix also works for first alternative" in {
+    L.parseChars("ab") {
+      L.ch('a') >> { a =>
+        L.ch('b') ^^ (b => s"$a$b") | L.ch('c') ^^ (c => s"$a$c")
+      }
+    } shouldBe Right("ab")
+  }
+
+  ">> chains multiple times" in {
+    L.parseChars("abc") {
+      L.ch('a') >> { a =>
+        L.ch('b') >> { b =>
+          L.ch('c') ^^ (c => s"$a$b$c")
+        }
+      }
+    } shouldBe Right("abc")
+  }
+
   // --- Complex combinations ---
 
   "sequence + alternation + repetition" in {

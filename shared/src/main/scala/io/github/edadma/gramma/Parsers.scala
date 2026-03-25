@@ -136,6 +136,10 @@ abstract class Parsers[T]:
   // --- Mapping ---
 
   extension [A](a: P[A])
+    def >>[B](f: A => (ParseCtx ?=> P[B]))(using ctx: ParseCtx): P[B] =
+      if !ctx.ok then null.asInstanceOf[P[B]]
+      else f(a)
+
     def ^^[B](f: A => B)(using ctx: ParseCtx): P[B] =
       if !ctx.ok then null.asInstanceOf[P[B]]
       else f(a)
